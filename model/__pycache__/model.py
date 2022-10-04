@@ -1,0 +1,3 @@
+
+class CrowdModel():
+    pass
