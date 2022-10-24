@@ -9,67 +9,65 @@ class SimpleCrowdModel(nn.Module):
             # ouput channel:  how many feature map we are generating
             # kernel size: Convolutional filter size
             # padding: zero padding      
-            # ***In order to determine the parameter values, you need to calculate them based on the given dataset***
-            nn.Conv2d(in_channels = in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), #Your Code#
+            nn.Conv2d(in_channels = in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), ##
             
             # 2. define a BatchNorm2d layer for normalizing the output from the previous layer input, to let the layer nn learn independently, improving performance
-            nn.BatchNorm2d(num_features = out_channels), #Your Code#)
+            nn.BatchNorm2d(num_features = out_channels), ##)
 
             # 3. define a ReLU activation
-            #Your Code#
+            ##
             nn.ReLU(),
 
             # 4. define a MaxPooling layer for dividing current feature map size by the maxpool kernel size
-            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default #Your Code#)
+            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default ##)
             )
+
         self.layer2 = nn.Sequential(
             # Layer2 should have the same network structure of layer1
             # 1. define a COnv2d layer with parameters: input_channel, output_channel, kernel_size, stride, padding
-             nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), #Your Code#
+             nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), ##
             
             # 2. define a BatchNorm2d layer for normalizing the output from the previous layer input, to let the layer nn learn independently, improving performance
-            nn.BatchNorm2d(num_features = out_channels), #Your Code#)
+            nn.BatchNorm2d(num_features = out_channels), ##)
 
             # 3. define a ReLU activation
-            #Your Code#
+            ##
             nn.ReLU(),
 
             # 4. define a MaxPooling layer for dividing current feature map size by the maxpool kernel size
-            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default #Your Code#)
+            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default ##)
             )
-           
 
         self.layer3 = nn.Sequential(
             # Layer2 should have the same network structure of layer1
             # 1. define a COnv2d layer with parameters: input_channel, output_channel, kernel_size, stride, padding
-            nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), #Your Code#
+            nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), ##
             
             # 2. define a BatchNorm2d layer for normalizing the output from the previous layer input, to let the layer nn learn independently, improving performance
-            nn.BatchNorm2d(num_features = out_channels), #Your Code#)
+            nn.BatchNorm2d(num_features = out_channels), ##)
 
             # 3. define a ReLU activation
-            #Your Code#
             nn.ReLU(),
 
             # 4. define a MaxPooling layer for dividing current feature map size by the maxpool kernel size
-            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default #Your Code#)
+            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default ##)
             )
            
         
         self.layer4 = nn.Sequential(
             # Layer2 should have the same network structure of layer1
             # 1. define a COnv2d layer with parameters: input_channel, output_channel, kernel_size, stride, padding
-             nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), #Your Code#
+             nn.Conv2d(in_channels = out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding), ##
             
             # 2. define a BatchNorm2d layer for normalizing the output from the previous layer input, to let the layer nn learn independently, improving performance
-            nn.BatchNorm2d(num_features = out_channels), #Your Code#)
+            nn.BatchNorm2d(num_features = out_channels), ##)
 
             # 3. define a ReLU activation
-            #Your Code#
+            ##
             nn.ReLU(),
 
             # 4. define a MaxPooling layer for dividing current feature map size by the maxpool kernel size
-            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default #Your Code#)
+            nn.MaxPool2d(kernel_size = 3, stride = 1) #stride = None by default ##)
             )
         
         
@@ -85,7 +83,6 @@ class SimpleCrowdModel(nn.Module):
 
 
     def forward(self, x):
-      # define the forward method based on your defined network architecture
       out = self.layer1(x)
       out = self.layer2(out)
       out = self.layer3(out)
