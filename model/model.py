@@ -1,8 +1,9 @@
 import torch.nn as nn
 import torch
 
+'''Simple Multi-Layer CNN. Will serve as baseline for performance & dataset problem compatability. More complex model will be implemented if need be.'''
 class SimpleCrowdModel(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, initial_height, initial_width):
         self.layer1 = nn.Sequential(
             # 1. define a COnv2d layer with parameters: input_channel, output_channel, kernel_size, stride, padding
             # input_channel: the input
@@ -76,7 +77,6 @@ class SimpleCrowdModel(nn.Module):
 
         #each conv layer pretty much takes away 4 from height and width due to the conv2d and maxpool2d layers (see their formulas for more info)
         # therefore last lin layer needs to take as input out_channels * (initial_height - num_layers * 4) * (initial_width - num_layers * 4) 
-        initial_height, initial_width = 28, 28
         num_layers = 4
         self.input_fts = out_channels * (initial_height - num_layers * 4) * (initial_width - num_layers * 4) 
         self.fc = nn.Linear(in_features = self.input_fts, out_features=1) #one out features since its regression
