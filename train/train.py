@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from sklearn.metrics import r2_score
 import torch
 from tqdm import tqdm
 import numpy as np
@@ -41,10 +42,7 @@ class Trainer():
             else:
                 raise ValueError("Model name not recognized")
         self.model = self.model.to(args.device)
-
-    #   Train loop code from my research is below, will augment to fit our model 
-    #=============================================================
-    '''
+    
     def train(self):
         if self.args.optimizer == "SGD":
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=float(self.args.learning_rate)) 
@@ -64,30 +62,14 @@ class Trainer():
             self.model.train() 
             for input, label in zip(self.train_data_x, self.train_data_y): 
                 self.optimizer.zero_grad()
-
-                #reduce dims of tgt and groundtruth and expected maybe?
-                ground_truth = np.array([[label["open"]]]) #want to predict opening price
-                ground_truth = torch.from_numpy(ground_truth).float()
-                src = np.array([[day["ticker"], day["open"], day["high"], day["low"], day["close"], day["rsi"], day["ema"], day["sma"], day["macd"], day["headline_sentiment_score"]] for day in input])
-                src = torch.from_numpy(src).float()
+                ground_truth = label
+                #ground_truth = torch.from_numpy(ground_truth).float()
+                img = input
             
-                if self.args.model == "stockformer":
-                    tgt = np.array([[day["open"]] for day in input])
-                    tgt = torch.from_numpy(tgt).float()
-                    expected = np.concatenate((tgt[1:], ground_truth))
-                    expected = torch.from_numpy(expected).float()
-                    output = self.model(src, tgt) #how to pass in input?  
-                        #dont need date for input, ticker name will use one hot encoding
-                    #import pdb; pdb.set_trace()
-                elif self.args.model == "stockformer_encoder":
-                    expected = ground_truth
-                    output = self.model(src) 
-                elif self.args.model == "lstm":
-                    expected = ground_truth
-                    output = self.model(src) 
-
-                loss = self.loss_function(output, expected) 
-
+                if self.args.model == "SimpleCrowdModel":
+                    output = self.model(img)  
+                    
+                loss = self.loss_function(output, ground_truth) 
                 loss.backward()
                 self.optimizer.step()
                 tqdm_bar.set_description('Epoch: {:d}, loss_train: {:.4f}'.format(self.epoch_idx, loss.detach().cpu().item()))
@@ -96,6 +78,23 @@ class Trainer():
                 self.evaluate()   
 
         self.save_model(True) #save model once done training
+
+    def inference(self, x_data, y_data): #use dataloaders here instead once implemented
+        y_pred = []
+        y_true = []
+
+        for input, label in zip(x_data, y_data): 
+            ground_truth = label
+            #ground_truth = torch.from_numpy(ground_truth).float()
+            img = input
+            if self.args.model == "SimpleCrowdModel":
+                output = self.model(img)  
+                y_true.append(ground_truth)
+                y_pred.append(output)
+            else:
+                raise ValueError('Model not recognized')
+            
+        return self.metrics(y_true, y_pred, x_data)
 
     def compute_roc_auc_score(self, y_true, y_pred):
         # if we take any two observations a and b such that a > b, then roc_auc_score is equal to the probability that our model actually ranks a higher than b
@@ -123,19 +122,6 @@ class Trainer():
             agg_loss += loss.detach().cpu().item()
         return agg_loss
 
-    def compute_dir_acc(self, y_true, y_pred, x_data):
-        correct = 0
-        total = 0
-        for gt, pred, data in zip(y_true, y_pred, x_data):
-            total += 1
-            if ((pred > data[-1]['open']) and (gt > data[-1]['open'])):
-                correct += 1
-            elif ((pred < data[-1]['open']) and (gt < data[-1]['open'])):
-                correct += 1
-            elif ((pred == data[-1]['open']) and (gt == data[-1]['open'])):
-                correct += 1
-        return correct/total
-
     def metrics(self, y_true, y_pred, x_data):
         #compute agg loss
         agg_loss = self.compute_loss(y_true, y_pred)
@@ -147,48 +133,10 @@ class Trainer():
 
         dir_acc = self.compute_dir_acc(y_true, y_pred, x_data)
         
-        return {'agg_loss': agg_loss, 'auc': auc, 'r2': r2_score(y_true, y_pred), 'dir_acc': dir_acc}
-
- 
-    def inference(self, x_data, y_data): #use dataloaders here instead once implemented
-        agg_loss = 0
-        y_pred = []
-        y_true = []
-
-        for input, label in zip(x_data, y_data): 
-
-            #reduce dims of tgt and groundtruth and expected maybe?
-            ground_truth = np.array([[label["open"]]]) #want to predict opening price
-            ground_truth = torch.from_numpy(ground_truth).float()
-            src = np.array([[day["ticker"], day["open"], day["high"], day["low"], day["close"], day["rsi"], day["ema"], day["sma"], day["macd"], day["headline_sentiment_score"]] for day in input])
-            src = torch.from_numpy(src).float()
+        return {'agg_loss': agg_loss, 'auc': auc, 'r2': r2_score(y_true, y_pred)}
 
 
-            if self.args.model == "stockformer":
-                tgt = np.array([[day["open"]] for day in input])
-                tgt = torch.from_numpy(tgt).float()
-                expected = np.concatenate((tgt[1:], ground_truth))
-                expected = torch.from_numpy(expected).float()
-                output = self.model(src, tgt)   
-                y_true.append(ground_truth) #use ground truth for appending
-                y_pred.append(output[-1]) #take last day of the output
-                    #dont need date for input, ticker name will use one hot encoding
-            elif self.args.model == "lstm":
-                expected = ground_truth
-                output = self.model(src) 
-                y_true.append(expected)
-                y_pred.append(output)
-            elif self.args.model == "stockformer_encoder":
-                expected = ground_truth
-                output = self.model(src) 
-                y_true.append(expected)
-                y_pred.append(output[-1])
-            else:
-                raise ValueError('Model not recognized')
-            
-        return self.metrics(y_true, y_pred, x_data)
-
-    runs inference on training and testing sets and collects scores #only log to wanb during eval since thats only when u get a validation loss
+    #runs inference on training and testing sets and collects scores #only log to wanb during eval since thats only when u get a validation loss
     def evaluate(self):
         self.model.eval()
         if self.args.epochs == 0: #if just doing prediction
@@ -199,21 +147,17 @@ class Trainer():
             train_results.update({'train_avg_loss': train_results["agg_loss"]/len(self.train_data_y)})
             train_results.update({'train_auc': train_results["auc"]})
             train_results.update({'train_r2': train_results["r2"]})
-            train_results.update({'train_dir_acc': train_results["dir_acc"]})
             print("train loss: " + str(train_results['train_avg_loss']))
             print("train auc: " + str(train_results['auc']))
             print("train r2: " + str(train_results['r2']))
-            print("train dir_acc: " + str(train_results['dir_acc']))
 
         val_results = self.inference(self.test_data_x, self.test_data_y)
         val_results.update({'test_avg_loss': val_results["agg_loss"]/len(self.test_data_y)})
         val_results.update({'val_auc': val_results["auc"]})
         val_results.update({'val_r2': val_results["r2"]})
-        val_results.update({'val_dir_acc': val_results["dir_acc"]})
         print("val loss: " + str(val_results['test_avg_loss']))
         print("val auc: " + str(val_results['auc']))
         print("val r2: " + str(val_results['r2']))
-        print("val dir_acc: " + str(val_results['dir_acc']))
 
         #train_results.update({'epoch': self.epoch_idx})
         val_results.update({'epoch': self.epoch_idx})
@@ -226,7 +170,7 @@ class Trainer():
         else:
             print(val_results)
 
-    '''
+    
     #=================================================================
 
     def save_model(self, is_best=False):
@@ -291,7 +235,7 @@ if __name__ == "__main__":
 
 
         ap.add_argument('--epochs', type=int, default = 50)
-        ap.add_argument('--device', type=str, default = "cuda:0")
+        ap.add_argument('--device', type=str, default = "cpu")
         ap.add_argument('--test_step', type=int, default = 5)
         ap.add_argument('--batch_size', type=int, default = 16)
         ap.add_argument('--optimizer', type=str, default = "Adam")
