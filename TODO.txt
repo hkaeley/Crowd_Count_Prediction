@@ -1,0 +1,5 @@
+1. Test current data extraction -> training pipeline
+2. decide on img size & width
+3. train on initial baseline -> implement more advanced model if needed
+4. implement batch learning if needed 
+5. create mini inference script as an example run
