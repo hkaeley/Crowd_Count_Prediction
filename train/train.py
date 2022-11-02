@@ -21,7 +21,7 @@ class Trainer():
             wandb.init(project=self.args.wandb_project, entity=self.args.wandb_entity)
 
     def build_dataset(self):
-        if not self.args.load_dataset:
+        if self.args.load_dataset == "False":
             self.data.extract_data()
             self.data.split_dataset()
             self.data.save()
@@ -38,10 +38,10 @@ class Trainer():
             if self.args.model == "SimpleCrowdModel":
                 self.model = SimpleCrowdModel(in_channels = self.args.in_channels, out_channels = self.args.out_channels, kernel_size = self.args.kernel_size, 
                 stride = self.args.stride, padding = self.args.padding,
-                initial_height = self.args.img_height, initial_width = self.args.img_width)
+                initial_height = self.args.img_height, initial_width = self.args.img_width, batch_size = self.args.batch_size)
             else:
                 raise ValueError("Model name not recognized")
-        self.model = self.model.to(args.device)
+        self.model = self.model.to(self.args.device)
     
     def train(self):
         if self.args.optimizer == "SGD":
@@ -51,19 +51,25 @@ class Trainer():
         else:
             raise ValueError("Optimizer arg not recognized")
         
-        if self.args.loss_func == "cross_entropy":
-            self.loss_function = torch.nn.CrossEntropyLoss()
-        elif self.args.loss_func == "mse": #want to use mse for regression
-            self.loss_function = torch.nn.MSELoss()
+        # if self.args.loss_func == "cross_entropy":
+        #     self.loss_function = torch.nn.CrossEntropyLoss()
+        # elif self.args.loss_func == "mse": #want to use mse for regression
+        self.loss_function = torch.nn.MSELoss()
 
         tqdm_bar = tqdm(range(self.args.epochs))
         for epoch_idx in tqdm_bar:
             self.epoch_idx = epoch_idx
             self.model.train() 
-            for input, label in zip(self.train_data_x, self.train_data_y): 
+
+            for i in range(0, len(self.data.train_data_x), self.args.batch_size): # iterate through batches of the dataset
                 self.optimizer.zero_grad()
-                ground_truth = label
-                #ground_truth = torch.from_numpy(ground_truth).float()
+
+                batch_index = i + self.args.batch_size if i + self.args.batch_size <= len(self.data.train_data_x) else len(self.data.train_data_x)
+                input = np.array(self.data.train_data_x[i:batch_index])
+                label = self.data.train_data_y[i:batch_index]
+                input = torch.from_numpy(input).float().to(self.args.device)
+                input = input.permute(0, 3, 1, 2) #put channels first
+                ground_truth = torch.from_numpy(np.array(label)).float().to(self.args.device).unsqueeze(1)
                 img = input
             
                 if self.args.model == "SimpleCrowdModel":
@@ -74,8 +80,30 @@ class Trainer():
                 self.optimizer.step()
                 tqdm_bar.set_description('Epoch: {:d}, loss_train: {:.4f}'.format(self.epoch_idx, loss.detach().cpu().item()))
 
+            # for input, label in zip(self.data.train_data_x, self.data.train_data_y): 
+            #     self.optimizer.zero_grad()
+            #     input = torch.from_numpy(input).float().to(self.args.device)
+            #     input = input.permute(2, 0, 1) #put channels first
+            #     # label = torch.from_numpy(label).to(self.args.device)
+            #     ground_truth = label
+            #     #ground_truth = torch.from_numpy(ground_truth).float()
+            #     img = input
+            
+            #     if self.args.model == "SimpleCrowdModel":
+            #         output = self.model(img)  
+                    
+            #     loss = self.loss_function(output, ground_truth) 
+            #     loss.backward()
+            #     self.optimizer.step()
+            #     tqdm_bar.set_description('Epoch: {:d}, loss_train: {:.4f}'.format(self.epoch_idx, loss.detach().cpu().item()))
+
             if self.epoch_idx % int(self.args.test_step) == 0 or self.epoch_idx == int(self.args.epochs) - 1: #include last epoch as well
+                del input
+                del ground_truth
+                del output
+                torch.cuda.empty_cache()
                 self.evaluate()   
+                torch.cuda.empty_cache()
 
         self.save_model(True) #save model once done training
 
@@ -83,25 +111,53 @@ class Trainer():
         y_pred = []
         y_true = []
 
-        for input, label in zip(x_data, y_data): 
-            ground_truth = label
-            #ground_truth = torch.from_numpy(ground_truth).float()
+        for i in range(0, len(self.data.train_data_x), self.args.batch_size): # iterate through batches of the dataset            
+            batch_index = i + self.args.batch_size if i + self.args.batch_size <= len(self.data.train_data_x) else len(self.data.train_data_x)
+            input = np.array(self.data.train_data_x[i:batch_index])
+            label = self.data.train_data_y[i:batch_index]
+            input = torch.from_numpy(input).float().to(self.args.device)
+            input = input.permute(0, 3, 1, 2) #put channels first
+            ground_truth = torch.from_numpy(np.array(label)).float().to(self.args.device).unsqueeze(1)
             img = input
+
             if self.args.model == "SimpleCrowdModel":
                 output = self.model(img)  
                 y_true.append(ground_truth)
                 y_pred.append(output)
             else:
                 raise ValueError('Model not recognized')
+
+        # for input, label in zip(x_data, y_data): 
+        #     ground_truth = label
+        #     #ground_truth = torch.from_numpy(ground_truth).float()
+        #     img = input
+        #     input = torch.from_numpy(input).float().to(self.args.device)
+        #     input = input.permute(2, 0, 1) #put channels first
+        #     # label = torch.from_numpy(label).to(self.args.device)
+        #     if self.args.model == "SimpleCrowdModel":
+        #         output = self.model(img)  
+        #         y_true.append(ground_truth)
+        #         y_pred.append(output)
+        #     else:
+        #         raise ValueError('Model not recognized')
             
         return self.metrics(y_true, y_pred, x_data)
+
+
+    def compute_roc_auc_score_batch(self, y_true, y_pred):
+        total = 0
+        for b,l in zip(y_true, y_pred):
+            b_score = self.compute_roc_auc_score(b, l)
+            total += b_score
+        return total / len(y_true)
+
 
     def compute_roc_auc_score(self, y_true, y_pred):
         # if we take any two observations a and b such that a > b, then roc_auc_score is equal to the probability that our model actually ranks a higher than b
 
         num_same_sign = 0
         num_pairs = 0
-        
+
         for a in range(len(y_true)):
             for b in range(len(y_true)):
                 if y_true[a] > y_true[b]: #find pairs of data in which the true value of a is > true value of b
@@ -127,13 +183,9 @@ class Trainer():
         agg_loss = self.compute_loss(y_true, y_pred)
 
         #compute auc
-        auc = self.compute_roc_auc_score(y_true, y_pred)
+        auc = self.compute_roc_auc_score_batch(y_true, y_pred)
 
-        #compute r^2 accuracy
-
-        dir_acc = self.compute_dir_acc(y_true, y_pred, x_data)
-        
-        return {'agg_loss': agg_loss, 'auc': auc, 'r2': r2_score(y_true, y_pred)}
+        return {'agg_loss': agg_loss, 'auc': auc} #, 'r2': r2_score(y_true, y_pred)} #TODO: implement r2 later if needed
 
 
     #runs inference on training and testing sets and collects scores #only log to wanb during eval since thats only when u get a validation loss
@@ -143,21 +195,21 @@ class Trainer():
             train_results = {}
             print('skipping training set.')
         else:
-            train_results = self.inference(self.train_data_x, self.train_data_y)
-            train_results.update({'train_avg_loss': train_results["agg_loss"]/len(self.train_data_y)})
+            train_results = self.inference(self.data.train_data_x, self.data.train_data_y)
+            train_results.update({'train_avg_loss': train_results["agg_loss"]/len(self.data.train_data_y)})
             train_results.update({'train_auc': train_results["auc"]})
-            train_results.update({'train_r2': train_results["r2"]})
+            # train_results.update({'train_r2': train_results["r2"]})
             print("train loss: " + str(train_results['train_avg_loss']))
             print("train auc: " + str(train_results['auc']))
-            print("train r2: " + str(train_results['r2']))
+            # print("train r2: " + str(train_results['r2']))
 
-        val_results = self.inference(self.test_data_x, self.test_data_y)
-        val_results.update({'test_avg_loss': val_results["agg_loss"]/len(self.test_data_y)})
+        val_results = self.inference(self.data.test_data_x, self.data.test_data_y)
+        val_results.update({'test_avg_loss': val_results["agg_loss"]/len(self.data.test_data_y)})
         val_results.update({'val_auc': val_results["auc"]})
-        val_results.update({'val_r2': val_results["r2"]})
+        # val_results.update({'val_r2': val_results["r2"]})
         print("val loss: " + str(val_results['test_avg_loss']))
         print("val auc: " + str(val_results['auc']))
-        print("val r2: " + str(val_results['r2']))
+        # print("val r2: " + str(val_results['r2']))
 
         #train_results.update({'epoch': self.epoch_idx})
         val_results.update({'epoch': self.epoch_idx})
@@ -212,8 +264,8 @@ class Trainer():
 
 if __name__ == "__main__":
         ap = ArgumentParser(description='The parameters for training.')
-        ap.add_argument('--load_dataset', type=bool, default = True)
-        ap.add_argument('--dataset_file_path', type=str, default="../../dataset", help="The path defining location of indicator dataset.")
+        ap.add_argument('--load_dataset', type=str, default = True)
+        ap.add_argument('--dataset_file_path', type=str, default="D:/dataset", help="The path defining location of indicator dataset.")
         ap.add_argument('--dataset_save_path', type=str, default="../../dataset.pkl", help="The path defining save/load location of processed dataset pkl.")
         ap.add_argument('--img_width', type=int, default=60, help="Resized width") #TODO: decide
         ap.add_argument('--img_height', type=int, default=60, help="Resized height") #TODO: decide
@@ -237,7 +289,7 @@ if __name__ == "__main__":
         ap.add_argument('--epochs', type=int, default = 50)
         ap.add_argument('--device', type=str, default = "cpu")
         ap.add_argument('--test_step', type=int, default = 5)
-        ap.add_argument('--batch_size', type=int, default = 16)
+        ap.add_argument('--batch_size', type=int, default = 8)
         ap.add_argument('--optimizer', type=str, default = "Adam")
         ap.add_argument('--learning_rate', type=float, default = 0.0001)
 

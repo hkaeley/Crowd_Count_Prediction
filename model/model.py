@@ -3,7 +3,9 @@ import torch
 
 '''Simple Multi-Layer CNN. Will serve as baseline for performance & dataset problem compatability. More complex model will be implemented if need be.'''
 class SimpleCrowdModel(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, initial_height, initial_width):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, initial_height, initial_width, batch_size):
+        super().__init__()
+        self.batch_size = batch_size
         self.layer1 = nn.Sequential(
             # 1. define a COnv2d layer with parameters: input_channel, output_channel, kernel_size, stride, padding
             # input_channel: the input
@@ -89,6 +91,6 @@ class SimpleCrowdModel(nn.Module):
       out = self.layer4(out)
       
       #must resize before passing into linear layer
-    #   out = out.reshape(batch_size, self.input_fts) #TODO: implement batch training on desktop later
+      out = out.reshape(x.shape[0], self.input_fts) 
       out = self.fc(out)
       return out
