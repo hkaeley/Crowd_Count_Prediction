@@ -20,6 +20,7 @@ class Trainer():
         if self.args.log_wandb == "True":
             wandb.init(project=self.args.wandb_project, entity=self.args.wandb_entity)
 
+
     def build_dataset(self):
         if self.args.load_dataset == "False":
             self.data.extract_data()
@@ -32,25 +33,23 @@ class Trainer():
         #load model if true
         #else build model depending on args
         #self, in_channels, out_channels, kernel_size, stride, padding)
-        if self.args.load_model == "True":
-            self.load_model()
+
+        if self.args.model == "SimpleCrowdModel":
+            self.model = SimpleCrowdModel(in_channels = self.args.in_channels, out_channels = self.args.out_channels, kernel_size = self.args.kernel_size, 
+            stride = self.args.stride, padding = self.args.padding,
+            initial_height = self.args.img_height, initial_width = self.args.img_width, batch_size = self.args.batch_size)
         else:
-            if self.args.model == "SimpleCrowdModel":
-                self.model = SimpleCrowdModel(in_channels = self.args.in_channels, out_channels = self.args.out_channels, kernel_size = self.args.kernel_size, 
-                stride = self.args.stride, padding = self.args.padding,
-                initial_height = self.args.img_height, initial_width = self.args.img_width, batch_size = self.args.batch_size)
-            else:
-                raise ValueError("Model name not recognized")
+            raise ValueError("Model name not recognized")
         self.model = self.model.to(self.args.device)
     
-    def train(self):
         if self.args.optimizer == "SGD":
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=float(self.args.learning_rate)) 
         elif self.args.optimizer == "Adam":
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=float(self.args.learning_rate)) 
         else:
             raise ValueError("Optimizer arg not recognized")
-        
+    
+    def train(self):
         # if self.args.loss_func == "cross_entropy":
         #     self.loss_function = torch.nn.CrossEntropyLoss()
         # elif self.args.loss_func == "mse": #want to use mse for regression
@@ -248,9 +247,9 @@ class Trainer():
     def load_model(self):  
         saved_path = Path(self.args.model_load_path).resolve()
         if saved_path.exists():
-            self.build_model()
             torch.cuda.empty_cache()
             checkpoint = torch.load(str(saved_path), map_location="cpu")
+            self.build_model()
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.epoch_idx = checkpoint['epoch']
@@ -283,7 +282,6 @@ if __name__ == "__main__":
         ap.add_argument('--model_save_directory', type=str, default = "saved_models/")
         ap.add_argument('--model_save_file', type=str, default = "best_model.pt")
         ap.add_argument('--model_load_path', type=str, default = "saved_models/best_model.pt")
-        ap.add_argument('--load_model', type=bool, default = False)
 
 
         ap.add_argument('--epochs', type=int, default = 50)
