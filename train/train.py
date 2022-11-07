@@ -149,6 +149,13 @@ class Trainer():
             b_score = self.compute_roc_auc_score(b, l)
             total += b_score
         return total / len(y_true)
+    
+
+    def compute_r2_score_batch(self, y_true, y_pred):
+        total = 0
+        for b,l in zip(y_true, y_pred):
+            total += r2_score(b.cpu().detach().numpy(),l.cpu().detach().numpy())
+        return total / len(y_true)
 
 
     def compute_roc_auc_score(self, y_true, y_pred):
@@ -184,7 +191,7 @@ class Trainer():
         #compute auc
         auc = self.compute_roc_auc_score_batch(y_true, y_pred)
 
-        return {'agg_loss': agg_loss, 'auc': auc} #, 'r2': r2_score(y_true, y_pred)} #TODO: implement r2 later if needed
+        return {'agg_loss': agg_loss, 'auc': auc , 'r2': self.compute_r2_score_batch(y_true, y_pred)} #TODO: implement r2 later if needed
 
 
     #runs inference on training and testing sets and collects scores #only log to wanb during eval since thats only when u get a validation loss
@@ -197,18 +204,18 @@ class Trainer():
             train_results = self.inference(self.data.train_data_x, self.data.train_data_y)
             train_results.update({'train_avg_loss': train_results["agg_loss"]/len(self.data.train_data_y)})
             train_results.update({'train_auc': train_results["auc"]})
-            # train_results.update({'train_r2': train_results["r2"]})
+            train_results.update({'train_r2': train_results["r2"]})
             print("train loss: " + str(train_results['train_avg_loss']))
             print("train auc: " + str(train_results['auc']))
-            # print("train r2: " + str(train_results['r2']))
+            print("train r2: " + str(train_results['r2']))
 
         val_results = self.inference(self.data.test_data_x, self.data.test_data_y)
         val_results.update({'test_avg_loss': val_results["agg_loss"]/len(self.data.test_data_y)})
         val_results.update({'val_auc': val_results["auc"]})
-        # val_results.update({'val_r2': val_results["r2"]})
+        val_results.update({'val_r2': val_results["r2"]})
         print("val loss: " + str(val_results['test_avg_loss']))
         print("val auc: " + str(val_results['auc']))
-        # print("val r2: " + str(val_results['r2']))
+        print("val r2: " + str(val_results['r2']))
 
         #train_results.update({'epoch': self.epoch_idx})
         val_results.update({'epoch': self.epoch_idx})
