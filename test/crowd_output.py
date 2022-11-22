@@ -21,7 +21,7 @@ if __name__ == "__main__":
     ap.add_argument('--batch_size', type=int, default = 8)
     ap.add_argument('--optimizer', type=str, default = "Adam")
     ap.add_argument('--learning_rate', type=float, default = 0.0001)
-    ap.add_argument('--model_load_path', type=str, default = "saved_models/best_model.pt")
+    ap.add_argument('--model_load_path', type=str, default = "60_60_model.pt")
     ap.add_argument('--log_wandb', type=str, default = "True")
     ap.add_argument('--input_img_path', type=str, default = "input.jpg")
 
